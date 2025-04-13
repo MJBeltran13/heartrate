@@ -1,0 +1,9 @@
+ECG Analysis Results
+Sampling Rate (Hz),999
+Maternal Average Heart Rate (BPM),74.7
+Fetal Average Heart Rate (BPM),106.3
+Number of Maternal R Peaks,6
+Number of Fetal R Peaks,8
+
+Maternal R Peaks
+Index,Time (s),Raw Value
