@@ -20,12 +20,13 @@ Here's how to quickly get started with the ECG analysis system:
 
 1. **Generate Sample ECG Data** (if you don't have real data):
    ```
-   py ecg_generator.py --output sample_ecg.csv
+   py ecg_generator.py 
+
    ```
 
 2. **Analyze ECG Data**:
    ```
-   py ecg_analyzer.py --input sample_ecg.csv --output analysis_results.csv
+   py ecg_analyzer.py --input ecg_data.csv --output analysis_results.csv
    ```
 
 3. **View Results**:
