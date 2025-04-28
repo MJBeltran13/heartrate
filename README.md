@@ -42,7 +42,7 @@ For real ECG data capture:
    ```
 4. Analyze the captured data:
    ```
-   py ecg_analyzer.py --input real_ecg.csv --output real_ecg_analysis.csv
+   py ecg_analyzer.py --input ecg_data.csv --output real_ecg_analysis.csv
    ```
 
 ## Running the ECG Generator
@@ -119,7 +119,7 @@ The project includes tools for capturing real ECG data from an AD8232 sensor con
 To capture ECG data from the sensor:
 palitan yung com port sa naka saksak na port 
 ```
-py for_esp/ecg_data_capture.py --port COM3 --duration 30 --output ecg_data.csv
+py for_esp/ecg_data_capture.py --port COM1 --duration 30 --output ecg_data.csv
 ```
 
 Parameters:
