@@ -3,10 +3,12 @@
 #include <time.h>
 
 // --- Wi-Fi Configuration ---
+// Replace with your Wi-Fi credentials
 const char* ssid = "PLDTHOMEFIBRgky9c";
 const char* password = "PLDTWIFIry2fp";
 
 // --- Firebase Configuration ---
+// Replace with your Firebase URL and authentication key
 const String FIREBASE_URL = "https://ecgdata-f042a-default-rtdb.asia-southeast1.firebasedatabase.app/ecg_readings.json";
 const String FIREBASE_AUTH = "AIzaSyA0OGrnWnNx0LDPGzDZHdrzajiRGEjr3AM";
 
@@ -16,20 +18,30 @@ const long gmtOffset_sec = 0;
 const int daylightOffset_sec = 0;
 
 // --- Pin Definitions ---
-#define AD8232_OUTPUT 35
+#define AD8232_OUTPUT 35  // Analog pin connected to AD8232 output
 
 // --- ECG Processing Constants ---
-const int SAMPLING_RATE = 200;  // Hz
-const int BUFFER_SIZE = 32;     // Buffer for filtering
+// ADJUSTMENT GUIDE:
+// SAMPLING_RATE: Higher values give better resolution but require more processing
+// BUFFER_SIZE: Larger buffers give better filtering but increase latency
+// NYQUIST: Half of sampling rate, used for frequency calculations
+const int SAMPLING_RATE = 200;  // Hz - Typical ECG sampling rate
+const int BUFFER_SIZE = 32;     // Number of samples for filtering
 const float NYQUIST = SAMPLING_RATE / 2.0;
 
-// Constants from analyzer2.py
-const int MATERNAL_MIN_DISTANCE = (SAMPLING_RATE * 0.6);  // ~100 BPM max
-const int FETAL_MIN_DISTANCE = (SAMPLING_RATE * 0.3);     // ~200 BPM max
-const float MATERNAL_PROMINENCE = 0.5;
-const float FETAL_PROMINENCE = 0.2;
+// Peak Detection Parameters
+// ADJUSTMENT GUIDE:
+// MATERNAL_MIN_DISTANCE: Controls maximum maternal heart rate (lower = higher max BPM)
+// FETAL_MIN_DISTANCE: Controls maximum fetal heart rate (lower = higher max BPM)
+// MATERNAL_PROMINENCE: Higher values = more prominent peaks needed (0.0 to 1.0)
+// FETAL_PROMINENCE: Lower values = more sensitive to small peaks (0.0 to 1.0)
+// Peak Detection Parameters - ADJUSTED
+const int MATERNAL_MIN_DISTANCE = (SAMPLING_RATE * 0.6);  // Keep same
+const int FETAL_MIN_DISTANCE = (SAMPLING_RATE * 0.4);     // CHANGED: Increased for ~150 BPM max
+const float MATERNAL_PROMINENCE = 0.5;    // Keep same
+const float FETAL_PROMINENCE = 0.15;      // CHANGED: Lowered for better sensitivity
 
-// Circular buffers for filtering
+// Circular buffer for filtering
 float ecgBuffer[BUFFER_SIZE];
 int bufferIndex = 0;
 
@@ -44,7 +56,7 @@ int fetalBpm = 0;
 void setup() {
   Serial.begin(115200);
 
-  // Initialize buffer
+  // Initialize buffer with zeros
   for(int i = 0; i < BUFFER_SIZE; i++) {
     ecgBuffer[i] = 0;
   }
@@ -59,7 +71,7 @@ void setup() {
   Serial.println("\n✅ Connected to Wi-Fi");
   Serial.println("IP Address: " + WiFi.localIP().toString());
 
-  // Sync time
+  // Sync time with NTP server
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
@@ -67,6 +79,16 @@ void setup() {
   }
 }
 
+/**
+ * Bandpass filter implementation
+ * ADJUSTMENT GUIDE:
+ * - For fetal filter (isFetalFilter = true):
+ *   - weight = 0.03: Higher values = more sensitive to high frequencies
+ *   - Adjust if fetal peaks are too weak or noisy
+ * - For maternal filter (isFetalFilter = false):
+ *   - weight = 0.05: Higher values = more sensitive to low frequencies
+ *   - Adjust if maternal peaks are too strong
+ */
 float bandpassFilter(int rawEcg, bool isFetalFilter) {
   // Update circular buffer
   ecgBuffer[bufferIndex] = rawEcg;
@@ -75,12 +97,11 @@ float bandpassFilter(int rawEcg, bool isFetalFilter) {
   float filtered = 0;
   
   // Approximate Butterworth filter using weighted moving average
-  // Weights are calculated based on frequency response
   for (int i = 0; i < BUFFER_SIZE; i++) {
     float weight;
     if (isFetalFilter) {
-      // Fetal: 10-40 Hz bandpass approximation
-      weight = 0.03 * (1 - abs(i - BUFFER_SIZE/2.0)/(BUFFER_SIZE/2.0));
+      // ADJUSTED fetal filter weights for better sensitivity
+      weight = 0.04 * (1 - abs(i - BUFFER_SIZE/2.0)/(BUFFER_SIZE/2.0));  // CHANGED: Increased from 0.03
     } else {
       // Maternal: 5-15 Hz bandpass approximation
       weight = 0.05 * (1 - abs(i - BUFFER_SIZE/2.0)/(BUFFER_SIZE/2.0));
@@ -91,6 +112,20 @@ float bandpassFilter(int rawEcg, bool isFetalFilter) {
   return filtered;
 }
 
+/**
+ * Peak detection algorithm
+ * ADJUSTMENT GUIDE:
+ * - If missing peaks:
+ *   - Decrease prominence (0.2 to 0.1)
+ *   - Decrease min_distance
+ * - If detecting false peaks:
+ *   - Increase prominence (0.2 to 0.3)
+ *   - Increase min_distance
+ * - If BPM is too low:
+ *   - Decrease min_distance
+ * - If BPM is too high:
+ *   - Increase min_distance
+ */
 void detectPeaks(float filteredEcg, bool isFetal) {
   static float maxValue = 0;
   static float minValue = 4095;
@@ -134,16 +169,25 @@ void detectPeaks(float filteredEcg, bool isFetal) {
     }
   }
   
-  // Decay max/min values slowly for adaptive threshold
-  maxValue *= 0.995;
-  minValue *= 1.005;
+   // Decay max/min values slowly for adaptive threshold
+  // ADJUSTMENT GUIDE:
+  // - If threshold adapts too slowly: Increase decay rates (0.995 to 0.99)
+  // - If threshold adapts too quickly: Decrease decay rates (0.995 to 0.999)
+  // ADJUSTED threshold decay rates for faster adaptation
+  if (isFetal) {
+    maxValue *= 0.99;    // CHANGED: Faster decay
+    minValue *= 1.01;    // CHANGED: Faster rise
+  } else {
+    maxValue *= 0.995;
+    minValue *= 1.005;
+  }
 }
 
 void loop() {
   // --- Read ECG ---
   int rawEcg = analogRead(AD8232_OUTPUT);
   
-  // Check for lead-off condition
+  // Check for lead-off condition (ADC value = 4095)
   if (rawEcg >= 4095) {
     Serial.println("Lead-off detected");
     delay(100);
@@ -195,7 +239,7 @@ void loop() {
     reconnectWiFi();
   }
 
-  delay(5000); // Wait 5 seconds
+  delay(5000); // Wait 5 seconds between readings
 }
 
 // --- Wi-Fi Reconnect Helper ---
