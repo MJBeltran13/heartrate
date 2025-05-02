@@ -1,200 +1,133 @@
-# ECG Generator, Analyzer, and Data Capture System
+# Heart Rate Monitoring System
 
-This project provides tools for:
-1. Generating synthetic maternal and fetal ECG signals with noise
-2. Analyzing ECG signals to detect maternal and fetal R peaks and calculate heart rates
-3. Capturing real ECG data from an AD8232 sensor connected to an ESP32
+This project implements a dual heart rate monitoring system using an ESP32 microcontroller and the AD8232 ECG sensor. It's designed to detect and measure both maternal and fetal heart rates.
 
-## Setup
+## Hardware Requirements
 
-1. Make sure you have Python 3.7+ installed on your system.
+- ESP32 development board
+- AD8232 ECG sensor (Single Lead Heart Rate Monitor)
+- Electrodes compatible with the AD8232
+- USB cable for ESP32 programming
+- Power source for portable operation (optional)
 
-2. Install the required dependencies:
+## Software Requirements
+
+- Arduino IDE (1.8.x or later)
+- Required Arduino libraries:
+  - WiFi.h
+  - HTTPClient.h
+  - time.h
+
+## Installation
+
+1. Clone this repository or download the source files
+2. Open `latest_ecg_client_request.ino` in the Arduino IDE
+3. Install any required libraries via the Arduino Library Manager
+4. Configure your Wi-Fi credentials and Firebase settings in the code:
+   ```cpp
+   // Replace with your Wi-Fi credentials
+   const char* ssid = "YOUR_WIFI_SSID";
+   const char* password = "YOUR_WIFI_PASSWORD";
+
+   // Replace with your Firebase URL and authentication key
+   const String FIREBASE_URL = "YOUR_FIREBASE_URL";
+   const String FIREBASE_AUTH = "YOUR_FIREBASE_AUTH_KEY";
    ```
-   py -m pip install -r requirements.txt
-   ```
+5. Connect your ESP32 to your computer
+6. Select the correct board and port in the Arduino IDE
+7. Upload the sketch to your ESP32
 
-## Quick Start Guide
+## Connecting the AD8232 to ESP32
 
-Here's how to quickly get started with the ECG analysis system:
+| AD8232 Pin | ESP32 Pin |
+|------------|-----------|
+| GND        | GND       |
+| 3.3V       | 3.3V      |
+| OUTPUT     | Pin 35 (Analog input) |
+| LO-        | Not connected* |
+| LO+        | Not connected* |
 
-1. **Generate Sample ECG Data** (if you don't have real data):
-   ```
-   py ecg_generator.py 
+*The LO- and LO+ pins can be connected to ESP32 digital pins if you want to implement lead-off detection using GPIO pins rather than the current analog value detection method.
 
-   ```
+## Electrode Placement
 
-2. **Analyze ECG Data**:
-   ```
-   py ecg_analyzer.py --input ecg_data.csv --output analysis_results.csv
-   ```
+For optimal signal quality:
+- Ensure skin is clean and free of oils
+- Place electrodes according to the manufacturer's recommendations
+- For maternal ECG: Standard 3-lead placement
+- For fetal ECG: Refer to medical guidelines or your healthcare provider
 
-3. **View Results**:
-   - Two plots will appear showing the ECG signal and heart rates
-   - Check `analysis_results.csv` for detailed results
+## Operation
 
-For real ECG data capture:
-1. Set up the hardware as described in the "Hardware Setup" section
-2. Upload Arduino code to ESP32
-3. Run the capture script:
-   ```
-   py for_esp/ecg_data_capture.py --port COM3 --duration 30 --output real_ecg.csv
-   ```
-4. Analyze the captured data:
-   ```
-   py ecg_analyzer.py --input ecg_data.csv --output real_ecg_analysis.csv
-   ```
+Once powered on, the ESP32 will:
+1. Connect to the configured Wi-Fi network
+2. Synchronize time with an NTP server
+3. Begin reading ECG data from the AD8232 sensor
+4. Process the raw signals to detect both maternal and fetal heart rates
+5. Transmit the data to Firebase for storage/visualization
+6. Output diagnostic information via the Serial Monitor (115200 baud)
 
-## Running the ECG Generator
+## Adjusting Parameters
 
-The ECG generator creates synthetic maternal and fetal ECG signals with noise. To run it:
+The code includes several parameters that can be adjusted to optimize heart rate detection:
 
-```
-py ecg_generator.py
-```
+```cpp
+// ECG Processing Constants
+const int SAMPLING_RATE = 200;  // Hz - Typical ECG sampling rate
+const int BUFFER_SIZE = 32;     // Number of samples for filtering
 
-This will generate a CSV file containing:
-- Time (s)
-- Raw ECG Value
-
-## Running the ECG Analyzer
-
-The ECG analyzer detects maternal and fetal R peaks and calculates heart rates from an ECG signal. To run it:
-
-```
-py ecg_analyzer.py --input ecg_data.csv --output analysis_results.csv
-```
-
-Parameters:
-- `--input`: Input CSV file containing ECG data (default: ecg_data.csv)
-- `--output`: Output CSV file for analysis results (default: ecg_analysis_results.csv)
-- `--sampling-rate`: Sampling rate in Hz (if not specified, will be estimated from the data)
-- `--window-size`: Window size for heart rate calculation in seconds (default: 10)
-
-The analyzer will:
-1. Load the ECG data from the CSV file
-2. Detect maternal R peaks (larger amplitude, slower rate)
-3. Detect fetal R peaks (smaller amplitude, faster rate)
-4. Calculate heart rates for both maternal and fetal signals
-5. Display two plots:
-   - ECG signal with detected maternal (red) and fetal (green) R peaks
-   - Maternal and fetal heart rates over time
-6. Save analysis results to a CSV file containing:
-   - Summary information (sampling rate, average heart rates)
-   - Maternal R peak locations and values
-   - Fetal R peak locations and values
-   - Heart rates over time for both signals
-
-The analyzer automatically handles lead-off conditions (when electrodes are disconnected) by:
-- Skipping R peak detection during lead-off periods
-- Highlighting lead-off periods in red on the plot
-- Only calculating heart rates from valid ECG data
-
-## Capturing Real ECG Data
-
-The project includes tools for capturing real ECG data from an AD8232 sensor connected to an ESP32.
-
-### Hardware Setup
-
-1. Connect the AD8232 ECG sensor to the ESP32:
-   - AD8232 OUTPUT → ESP32 GPIO 35
-   - AD8232 LO+ → ESP32 GPIO 32
-   - AD8232 LO- → ESP32 GPIO 33
-   - AD8232 3.3V → ESP32 3.3V
-   - AD8232 GND → ESP32 GND
-
-2. Connect the ECG electrodes to the AD8232 sensor:
-   - RA (Right Arm) → AD8232 +
-   - LA (Left Arm) → AD8232 -
-   - RL (Right Leg) → AD8232 LO
-
-### Uploading the Arduino Code
-
-1. Open the `for_esp/ecg_ad8232.ino` file in the Arduino IDE
-2. Select your ESP32 board from the Tools menu
-3. Upload the code to your ESP32
-
-### Capturing ECG Data
-
-To capture ECG data from the sensor:
-palitan yung com port sa naka saksak na port 
-```
-py for_esp/ecg_data_capture.py --port COM1 --duration 30 --output ecg_data.csv
+// Peak Detection Parameters 
+const int MATERNAL_MIN_DISTANCE = (SAMPLING_RATE * 0.6);
+const int FETAL_MIN_DISTANCE = (SAMPLING_RATE * 0.4);
+const float MATERNAL_PROMINENCE = 0.5;
+const float FETAL_PROMINENCE = 0.15;
 ```
 
-Parameters:
-- `--port`: Serial port (e.g., COM3, /dev/ttyUSB0)
-- `--baud`: Baud rate (default: 115200)
-- `--duration`: Recording duration in seconds (default: 30.0)
-- `--output`: Output CSV file (default: ecg_data_YYYYMMDD_HHMMSS.csv)
+- `SAMPLING_RATE`: Higher values give better resolution but require more processing
+- `BUFFER_SIZE`: Larger buffers give better filtering but increase latency
+- `MATERNAL/FETAL_MIN_DISTANCE`: Controls maximum heart rate (lower = higher max BPM)
+- `MATERNAL/FETAL_PROMINENCE`: Adjusts sensitivity to peaks (lower = more sensitive)
 
-If you don't specify a port, the script will list available ports and let you select one.
+## Data Visualization and Storage
 
-## Using the Functions in Your Code
+The device sends data to a Firebase Realtime Database in the following format:
 
-You can also import and use the functions in your own Python scripts:
-
-```python
-from ecg_analyzer import analyze_ecg, plot_analysis
-
-# Load ECG data
-t, ecg, sampling_rate = load_ecg_from_csv('ecg_data.csv')
-
-# Analyze ECG
-(maternal_peaks, fetal_peaks, 
- maternal_heart_rates, fetal_heart_rates,
- maternal_times, fetal_times,
- maternal_avg_hr, fetal_avg_hr,
- lead_off_mask) = analyze_ecg(ecg, sampling_rate)
-
-# Plot results
-plot_analysis(t, ecg, maternal_peaks, fetal_peaks,
-             maternal_heart_rates, fetal_heart_rates,
-             maternal_times, fetal_times,
-             maternal_avg_hr, fetal_avg_hr,
-             lead_off_mask)
+```json
+{
+  "deviceId": "esp32",
+  "bpm": 120,
+  "timestamp": "2023-05-25T12:34:56",
+  "rawEcg": 2048,
+  "smoothedEcg": 2050
+}
 ```
 
-## Parameters
+You can create a web or mobile application to visualize this data in real-time.
 
-### ECG Analyzer Parameters:
-- `min_distance`: Minimum distance between maternal R peaks (0.6s, ~100 BPM max)
-- `min_distance_fetal`: Minimum distance between fetal R peaks (0.3s, ~200 BPM max)
-- `prominence`: Minimum prominence for maternal peaks (0.5)
-- `prominence_fetal`: Minimum prominence for fetal peaks (0.2)
-- `window_size`: Size of the window for calculating moving average in seconds (default: 10)
+## Troubleshooting
 
-### CSV File Format
+- **No Wi-Fi Connection**: Check your SSID and password
+- **"Lead-off detected"**: Check electrode placement and connections
+- **No heart rate detected**: Adjust prominence and min_distance parameters
+- **Inconsistent readings**: Try repositioning electrodes or adjusting filter parameters
+- **High noise levels**: Check for electrical interference sources nearby
 
-Input CSV file format:
+## Data Capture with Python
+
+You can use the included Python script to capture ECG data directly from the ESP32 for analysis:
+
+```bash
+python ecg_data_capture.py --port COM6 --duration 60
 ```
-Time (s),Raw ECG Value
-0.000,2048
-0.002,2052
-...
-```
 
-Output CSV file format:
-```
-ECG Analysis Results
-Sampling Rate (Hz),400
-Maternal Average Heart Rate (BPM),75.2
-Fetal Average Heart Rate (BPM),142.8
-Number of Maternal R Peaks,125
-Number of Fetal R Peaks,237
+See the [Data Capture Documentation](data_capture.md) for more details.
 
-Maternal R Peaks
-Index,Time (s),Raw Value
-1,0.824,3245
-...
+## License
 
-Fetal R Peaks
-Index,Time (s),Raw Value
-1,0.412,2856
-...
+[Specify your license here, e.g., MIT, GPL, etc.]
 
-Heart Rates
-Time (s),Maternal HR (BPM),Fetal HR (BPM)
-5.000,74.8,143.2
-...
-``` 
+## Acknowledgments
+
+- AD8232 Heart Rate Monitor by SparkFun
+- ESP32 Community and Documentation
+- [Add any other acknowledgments here] 
